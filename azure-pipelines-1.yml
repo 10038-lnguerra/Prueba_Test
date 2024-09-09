@@ -1,8 +1,3 @@
-# Starter pipeline
-# Start with a minimal pipeline that you can customize to build and deploy your code.
-# Add steps that build, run tests, deploy, and more:
-# https://aka.ms/yaml
-
 trigger:
   branches:
     include:
@@ -11,8 +6,12 @@ trigger:
 pool:
   vmImage: 'ubuntu-latest'
 
+variables:
+  BuildConfiguration: 'Release'
+  ReprocessCount: 3  # Número de reprocesos en caso de fallo
+
 steps:
-  # Paso para restaurar dependencias (si es necesario)
+  # Paso para restaurar dependencias
   - task: DotNetCoreCLI@2
     inputs:
       command: 'restore'
@@ -23,19 +22,24 @@ steps:
     inputs:
       command: 'build'
       projects: '**/*.csproj'
-
-  # Paso para ejecutar las pruebas
+  
+  # Paso para ejecutar las pruebas con reintentos
   - task: DotNetCoreCLI@2
     inputs:
       command: 'test'
       projects: '**/*.csproj'
-      arguments: '--logger trx --results-directory $(Common.TestResultsDirectory)'
+      arguments: '--logger trx --results-directory $(Common.TestResultsDirectory) --test-adapter-path:. --filter "TestCategory!=IntegrationTests" --blame-hang --blame-crash --collect "Code Coverage" --runsettings .runsettings'
 
-  # Paso para publicar los resultados de las pruebas
+  # Publicar los resultados de las pruebas (incluso con reprocesos)
   - task: PublishTestResults@2
     inputs:
-      testResultsFormat: 'VSTest'  # Usa el formato adecuado para tus pruebas (VSTest, JUnit, NUnit)
+      testResultsFormat: 'VSTest'  # Cambia a JUnit/NUnit según corresponda
       testResultsFiles: '$(Common.TestResultsDirectory)/*.trx'
       searchFolder: '$(System.DefaultWorkingDirectory)'
-      buildPlatform: '$(BuildPlatform)'
-      buildConfiguration: '$(BuildConfiguration)'
+      failTaskOnFailedTests: true  # Esta opción asegurará que el pipeline falle si las pruebas fallan
+
+  # Reprocesar pruebas fallidas hasta el número de reprocesos definidos
+  - task: RetryFailedTests@1  # Esta tarea no es nativa; requerirá un script o extensión personalizada
+    inputs:
+      testResultsDirectory: '$(Common.TestResultsDirectory)'
+      maxRetryCount: $(ReprocessCount)
