@@ -1,0 +1,43 @@
+# Starter pipeline
+# Start with a minimal pipeline that you can customize to build and deploy your code.
+# Add steps that build, run tests, deploy, and more:
+# https://aka.ms/yaml
+
+trigger:
+  branches:
+    include:
+      - main  # Ejecuta el pipeline en cada push a la rama 'main'
+
+pool:
+  vmImage: 'ubuntu-latest'
+
+steps:
+  # Paso para restaurar dependencias (si es necesario)
+  - task: DotNetCoreCLI@2
+    inputs:
+      command: 'restore'
+      projects: '**/*.csproj'
+
+  # Paso para construir la solución o proyecto
+  - task: DotNetCoreCLI@2
+    inputs:
+      command: 'build'
+      projects: '**/*.csproj'
+
+  # Paso para ejecutar las pruebas
+  - task: DotNetCoreCLI@2
+    inputs:
+      command: 'test'
+      projects: '**/*.csproj'
+      arguments: '--logger trx --results-directory $(Common.TestResultsDirectory)'
+
+  # Paso para publicar los resultados de las pruebas
+  - task: PublishTestResults@2
+  inputs:
+    testResultsFormat: 'VSTest'  # Usa el formato adecuado para tus pruebas (VSTest, JUnit, NUnit)
+    testResultsFiles: '$(Common.TestResultsDirectory)/*.trx'
+    searchFolder: '$(System.DefaultWorkingDirectory)'
+    buildPlatform: '$(BuildPlatform)'
+    buildConfiguration: '$(BuildConfiguration)'
+
+
