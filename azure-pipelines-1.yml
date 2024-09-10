@@ -1,45 +1,40 @@
 trigger:
   branches:
     include:
-      - main  # Ejecuta el pipeline en cada push a la rama 'main'
+      - main
 
 pool:
   vmImage: 'ubuntu-latest'
 
-variables:
-  BuildConfiguration: 'Release'
-  ReprocessCount: 3  # Número de reprocesos en caso de fallo
+resources:
+  repositories:
+    - repository: self
+      type: git
+      name: 10038-lnguerra/Prueba_Test
+      ref: refs/heads/main  # Verifica que esta sea la rama correcta
 
 steps:
-  # Paso para restaurar dependencias
+  - checkout: self
+    persistCredentials: true
+
   - task: DotNetCoreCLI@2
     inputs:
       command: 'restore'
       projects: '**/*.csproj'
 
-  # Paso para construir la solución o proyecto
   - task: DotNetCoreCLI@2
     inputs:
       command: 'build'
       projects: '**/*.csproj'
-  
-  # Paso para ejecutar las pruebas con reintentos
+
   - task: DotNetCoreCLI@2
     inputs:
       command: 'test'
       projects: '**/*.csproj'
-      arguments: '--logger trx --results-directory $(Common.TestResultsDirectory) --test-adapter-path:. --filter "TestCategory!=IntegrationTests" --blame-hang --blame-crash --collect "Code Coverage" --runsettings .runsettings'
+      arguments: '--logger trx --results-directory $(Common.TestResultsDirectory)'
 
-  # Publicar los resultados de las pruebas (incluso con reprocesos)
   - task: PublishTestResults@2
     inputs:
-      testResultsFormat: 'VSTest'  # Cambia a JUnit/NUnit según corresponda
+      testResultsFormat: 'VSTest'
       testResultsFiles: '$(Common.TestResultsDirectory)/*.trx'
       searchFolder: '$(System.DefaultWorkingDirectory)'
-      failTaskOnFailedTests: true  # Esta opción asegurará que el pipeline falle si las pruebas fallan
-
-  # Reprocesar pruebas fallidas hasta el número de reprocesos definidos
-  - task: RetryFailedTests@1  # Esta tarea no es nativa; requerirá un script o extensión personalizada
-    inputs:
-      testResultsDirectory: '$(Common.TestResultsDirectory)'
-      maxRetryCount: $(ReprocessCount)
